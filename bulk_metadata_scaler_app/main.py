@@ -13,6 +13,9 @@ Usage:
 
 import asyncio
 import base64
+import json
+import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException
@@ -51,6 +54,29 @@ class EnrichmentResponse(BaseModel):
 class BulkMetadataHandler(HandlerInterface):
     """Handler for the bulk metadata scaler application."""
 
+    def __init__(self):
+        """Initialize the handler and load configmap."""
+        self._configmap: Optional[Dict[str, Any]] = None
+        self._load_configmap()
+
+    def _load_configmap(self) -> None:
+        """Load the configmap from file."""
+        # Look for configmap.json in the package directory or parent
+        possible_paths = [
+            Path(__file__).parent.parent / "configmap.json",
+            Path(__file__).parent / "configmap.json",
+            Path("configmap.json"),
+        ]
+        
+        for config_path in possible_paths:
+            if config_path.exists():
+                with open(config_path, "r") as f:
+                    self._configmap = json.load(f)
+                logger.info(f"Loaded configmap from {config_path}")
+                return
+        
+        logger.warning("No configmap.json found")
+
     async def load(self, **kwargs: Any) -> None:
         """Load handler resources."""
         pass
@@ -67,6 +93,17 @@ class BulkMetadataHandler(HandlerInterface):
     async def preflight_check(self, **kwargs: Any) -> Any:
         """Preflight check - not used in this app."""
         return {"success": True}
+
+    async def get_configmap(self, config_map_id: str) -> Dict[str, Any]:
+        """Return the configmap for UI rendering."""
+        if self._configmap:
+            return self._configmap
+        return {
+            "title": "Bulk Metadata Scaler",
+            "description": "Upload a reference file to enrich asset metadata",
+            "type": "object",
+            "properties": {}
+        }
 
 
 class BulkMetadataScalerApp(APIServer):
@@ -234,6 +271,7 @@ async def main(daemon: bool = True) -> Dict[str, Any]:
     app = BulkMetadataScalerApp(
         handler=BulkMetadataHandler(),
         workflow_client=workflow_client,
+        has_configmap=True,  # Enable configmap-based UI for Atlan platform
     )
 
     # Register the workflow

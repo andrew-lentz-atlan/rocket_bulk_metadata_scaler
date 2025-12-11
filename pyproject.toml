@@ -11,6 +11,7 @@ dependencies = [
     "atlan-application-sdk[workflows,pandas]>=1.0.0",
     "openpyxl>=3.1.0",
     "python-multipart>=0.0.9",  # For file uploads in FastAPI
+    "streamlit>=1.29.0",  # For the web UI
 ]
 
 [project.optional-dependencies]

@@ -31,38 +31,72 @@ export ATLAN_BASE_URL="https://your-tenant.atlan.com"
 
 ## Usage
 
-### Start the Application
+### Quick Start (Full SDK Mode)
 
 ```bash
-# Start dependencies (Dapr + Temporal)
+# Terminal 1: Start dependencies (Dapr + Temporal) from application-sdk directory
+cd /path/to/application-sdk
 uv run poe start-deps
 
-# Run the app
+# Terminal 2: Run the app
+cd /path/to/bulk_metadata_scaler_app
 python -m bulk_metadata_scaler_app.main
+
+# Terminal 3: Run the Web UI
+streamlit run ui.py
 ```
+
+### Web UI
+
+The app includes a **Streamlit web interface** for easy file uploads:
+
+```bash
+streamlit run ui.py
+```
+
+Then open http://localhost:8501 in your browser.
+
+Features:
+- 📁 Drag-and-drop file upload
+- ⚙️ Configure asset types and dry-run mode
+- 📊 Real-time workflow progress
+- 📋 Results summary
 
 ### API Endpoints
 
-#### Upload and Process File
+#### Trigger Workflow (via JSON)
 
 ```bash
-POST /api/v1/enrich
-Content-Type: multipart/form-data
+POST /workflows/v1/workflow/enrich
+Content-Type: application/json
 
-# Form fields:
-# - file: The reference file (CSV or Excel)
-# - asset_types: Comma-separated asset types (default: Column)
-# - dry_run: true/false (default: false)
+{
+  "file_content": "<base64-encoded-file>",
+  "file_name": "reference.csv",
+  "asset_types": ["Column"],
+  "dry_run": true
+}
 ```
 
-#### Example with curl
+#### Example with Python
 
-```bash
-curl -X POST "http://localhost:8000/api/v1/enrich" \
-  -F "file=@reference_data.xlsx" \
-  -F "asset_types=Column" \
-  -F "dry_run=true"
-```
+```python
+import base64
+import requests
+
+with open('reference.csv', 'rb') as f:
+    content = base64.b64encode(f.read()).decode('utf-8')
+
+response = requests.post(
+    'http://localhost:8000/workflows/v1/workflow/enrich',
+    json={
+        'file_content': content,
+        'file_name': 'reference.csv',
+        'asset_types': ['Column'],
+        'dry_run': True
+    }
+)
+print(response.json())
 
 ## Reference File Format
 
@@ -84,6 +118,22 @@ Built on the Atlan Application SDK using:
 - **Dapr**: State management and service mesh
 - **FastAPI**: REST API endpoints
 - **pyatlan**: Atlan Python SDK for asset operations
+
+## Deployment Options
+
+### Local Development (Streamlit UI)
+```bash
+streamlit run ui.py
+```
+Perfect for testing and demos. Opens at http://localhost:8501
+
+### Atlan Production Deployment
+The app includes a `configmap.json` that defines the UI forms for Atlan's platform:
+- Atlan renders the UI automatically based on the configmap
+- No custom frontend needed
+- Integrates with Atlan's authentication and asset browser
+
+The configmap is served via `/workflows/v1/configmap/{id}` endpoint.
 
 ## Development
 

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Bulk Metadata Scaler",
+  "description": "Bulk-update asset metadata from a reference file",
+  "type": "object",
+  "properties": {
+    "file_upload": {
+      "type": "object",
+      "title": "Reference File",
+      "description": "Upload a CSV or Excel file with asset metadata",
+      "properties": {
+        "file": {
+          "type": "string",
+          "format": "data-url",
+          "title": "Reference File",
+          "description": "CSV or Excel file with columns: name, description, certificate, custom metadata fields"
+        }
+      },
+      "required": ["file"]
+    },
+    "asset_types": {
+      "type": "array",
+      "title": "Asset Types",
+      "description": "Select which asset types to search for matching names",
+      "items": {
+        "type": "string",
+        "enum": ["Column", "Table", "View", "Database", "Schema"]
+      },
+      "default": ["Column"],
+      "uniqueItems": true
+    },
+    "dry_run": {
+      "type": "boolean",
+      "title": "Dry Run (Preview Only)",
+      "description": "If enabled, shows what would change without actually updating assets",
+      "default": true
+    },
+    "search_column": {
+      "type": "string",
+      "title": "Search Column Name",
+      "description": "Column name in the file that contains asset names to search for",
+      "default": "name"
+    },
+    "custom_metadata_delimiter": {
+      "type": "string",
+      "title": "Custom Metadata Delimiter",
+      "description": "Delimiter used to separate custom metadata set name from field name",
+      "default": "::"
+    }
+  },
+  "required": ["file_upload", "asset_types"]
+}
+
