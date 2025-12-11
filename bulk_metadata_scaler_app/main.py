@@ -19,9 +19,11 @@ from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 from pydantic import BaseModel
 
 from application_sdk.application import BaseApplication
+from application_sdk.clients.utils import get_workflow_client
 from application_sdk.handlers import HandlerInterface
 from application_sdk.observability.logger_adaptor import get_logger
 from application_sdk.server.fastapi import APIServer, HttpWorkflowTrigger
+from application_sdk.worker import Worker
 
 from .activities import BulkMetadataActivities
 from .workflow import BulkMetadataEnrichmentWorkflow
@@ -76,6 +78,11 @@ class BulkMetadataScalerApp(APIServer):
         """Register custom routers."""
         self.app.include_router(self.custom_router, prefix="/api/v1")
         super().register_routers()
+
+    def register_ui_routes(self):
+        """Override to disable static file mounting (we don't have a frontend)."""
+        # Skip the default UI routes that require frontend/static directory
+        pass
 
     def register_routes(self):
         """Register custom routes."""
@@ -196,8 +203,38 @@ async def main(daemon: bool = True) -> Dict[str, Any]:
     """Main entry point for the application."""
     logger.info(f"Starting {APPLICATION_NAME}")
 
-    # Initialize the custom FastAPI app
-    app = BulkMetadataScalerApp(handler=BulkMetadataHandler())
+    # Initialize the Temporal workflow client
+    logger.info("Initializing Temporal workflow client...")
+    workflow_client = get_workflow_client(application_name=APPLICATION_NAME)
+    await workflow_client.load()
+    logger.info("Temporal workflow client connected successfully")
+
+    # Create the activities instance and get activity methods
+    activities_instance = BulkMetadataActivities()
+    activity_methods = [
+        activities_instance.get_workflow_args,  # SDK activity to retrieve config from state store
+        activities_instance.parse_file,
+        activities_instance.find_assets_by_name,
+        activities_instance.update_asset_metadata,
+        activities_instance.process_single_row,
+    ]
+
+    # Create and start the worker (daemon mode so it runs in background)
+    logger.info("Starting Temporal worker...")
+    worker = Worker(
+        workflow_client=workflow_client,
+        workflow_activities=activity_methods,
+        workflow_classes=[BulkMetadataEnrichmentWorkflow],
+        passthrough_modules=["pyatlan", "pandas"],
+    )
+    await worker.start(daemon=True)
+    logger.info("Temporal worker started in background")
+
+    # Initialize the custom FastAPI app with the workflow client
+    app = BulkMetadataScalerApp(
+        handler=BulkMetadataHandler(),
+        workflow_client=workflow_client,
+    )
 
     # Register the workflow
     app.register_workflow(

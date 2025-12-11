@@ -79,19 +79,22 @@ class BulkMetadataActivities(ActivitiesInterface):
         Returns:
             Dictionary with column_mapping and records.
         """
-        logger.info(f"Parsing file: {config.get('file_name', 'unknown')}")
-
-        file_content = config.get("file_content", "")
         file_name = config.get("file_name", "data.csv")
+        file_content = config.get("file_content", "")
         search_column = config.get("search_column", "name")
         cm_delimiter = config.get("custom_metadata_delimiter", "::")
 
+        logger.info(f"Parsing file: {file_name}")
+
         # Decode base64 content if it's a string
-        if isinstance(file_content, str):
+        if isinstance(file_content, str) and file_content:
             try:
                 file_content = base64.b64decode(file_content)
             except Exception:
                 file_content = file_content.encode()
+        
+        if not file_content:
+            raise ValueError("No file content received - file_content is empty")
 
         # Determine file type and load
         suffix = Path(file_name).suffix.lower()

@@ -4,6 +4,7 @@ from datetime import timedelta
 from typing import Any, Callable, Dict, Sequence, cast
 
 from temporalio import workflow
+from temporalio.common import RetryPolicy
 
 from application_sdk.activities import ActivitiesInterface
 from application_sdk.observability.logger_adaptor import get_logger
@@ -13,6 +14,14 @@ from .activities import BulkMetadataActivities
 from .models import ProcessingStatus, WorkflowResult
 
 logger = get_logger(__name__)
+
+# Retry policy: max 3 attempts, then fail
+DEFAULT_RETRY_POLICY = RetryPolicy(
+    maximum_attempts=3,
+    initial_interval=timedelta(seconds=1),
+    maximum_interval=timedelta(seconds=30),
+    backoff_coefficient=2.0,
+)
 
 
 @workflow.defn
@@ -25,16 +34,23 @@ class BulkMetadataEnrichmentWorkflow(WorkflowInterface):
         Execute the bulk metadata enrichment workflow.
 
         Args:
-            workflow_config: Configuration containing file_content, file_name,
-                           asset_types, dry_run, etc.
+            workflow_config: Configuration containing workflow_id (full config is in state store).
 
         Returns:
             WorkflowResult as a dictionary.
         """
         activities = BulkMetadataActivities()
         
-        asset_types = workflow_config.get("asset_types", ["Column"])
-        dry_run = workflow_config.get("dry_run", False)
+        # SDK stores full config in state store - retrieve it using get_workflow_args
+        full_config: Dict[str, Any] = await workflow.execute_activity_method(
+            activities.get_workflow_args,
+            args=[workflow_config],
+            start_to_close_timeout=timedelta(minutes=2),
+            retry_policy=DEFAULT_RETRY_POLICY,
+        )
+        
+        asset_types = full_config.get("asset_types", ["Column"])
+        dry_run = full_config.get("dry_run", False)
 
         # Initialize result
         result = WorkflowResult()
@@ -43,9 +59,10 @@ class BulkMetadataEnrichmentWorkflow(WorkflowInterface):
         try:
             parse_result = await workflow.execute_activity_method(
                 activities.parse_file,
-                args=[workflow_config],
+                args=[full_config],  # Use full_config which has file_content
                 start_to_close_timeout=timedelta(minutes=5),
                 heartbeat_timeout=timedelta(seconds=30),
+                retry_policy=DEFAULT_RETRY_POLICY,
             )
         except Exception as e:
             result.errors.append(f"Failed to parse file: {str(e)}")
@@ -68,6 +85,7 @@ class BulkMetadataEnrichmentWorkflow(WorkflowInterface):
                     args=[record, asset_types, dry_run],
                     start_to_close_timeout=timedelta(minutes=10),
                     heartbeat_timeout=timedelta(seconds=60),
+                    retry_policy=DEFAULT_RETRY_POLICY,
                 )
 
                 # Update counters based on status
