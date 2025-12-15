@@ -32,7 +32,7 @@ ATLAN_API_KEY="your-api-key"
 ATLAN_BASE_URL="https://your-tenant.atlan.com"
 ```
 
-## Quick Start
+## Quick Start (Local Development)
 
 ### Terminal 1: Start SDK Dependencies
 
@@ -137,16 +137,40 @@ Built on the Atlan Application SDK:
 Use Streamlit UI or App Playground for testing:
 ```bash
 streamlit run ui.py  # Full file upload support
-# or
-# Visit http://localhost:8000 for App Playground
+# or visit http://localhost:8000 for App Playground
 ```
 
-### Atlan Production
+### Docker Build
 
-When deployed to Atlan:
-1. The platform reads `frontend/config.json` to render the UI
-2. File uploads work via drag-and-drop
-3. Integrates with Atlan authentication
+Build the Docker image locally:
+```bash
+docker build -t bulk-metadata-scaler:latest .
+```
+
+### Atlan Production Deployment
+
+The app follows the [Atlan Apps deployment pattern](https://github.com/atlanhq/atlan-sample-apps):
+
+1. **GitHub Actions** builds and pushes the image to GHCR on push to `main`
+2. **Helm charts** deploy the app to the tenant's Kubernetes cluster
+3. **Dapr** provides state management and object store access
+4. **Temporal** orchestrates workflow execution
+
+#### Deployment Steps
+
+1. Push code to GitHub (triggers image build)
+2. Deploy via Helm chart to internal tenant for testing
+3. Create marketplace package for production release
+
+See [Atlan Apps Deployment Via Helm Chart](https://github.com/atlanhq/atlan-sample-apps) for details.
+
+### File Input Modes
+
+| Mode | Config Key | Environment |
+|------|------------|-------------|
+| **Object Store** | `object_store_key` | Production (presigned URL upload) |
+| **Base64** | `file_content` | API / Streamlit |
+| **Local Path** | `file_upload` | Playground testing |
 
 ## Project Structure
 
@@ -159,7 +183,12 @@ bulk_metadata_scaler_app/
 │   └── main.py                 # FastAPI server & entry point
 ├── frontend/
 │   └── config.json             # UI configuration for Atlan
+├── components/                 # Dapr components (local dev)
+├── .github/workflows/          # CI/CD
+│   └── build-image.yaml        # Docker image build
+├── Dockerfile                  # Production container
 ├── ui.py                       # Streamlit UI
+├── main.py                     # Entry point for Docker
 ├── sample_reference.csv        # Example input file
 ├── pyproject.toml              # Dependencies
 └── README.md
@@ -173,4 +202,10 @@ pytest tests/
 
 # Format code
 ruff format .
+
+# Build Docker image
+docker build -t bulk-metadata-scaler .
+
+# Run in Docker (local test)
+docker run -p 8000:8000 -e ATLAN_API_KEY=xxx -e ATLAN_BASE_URL=https://tenant.atlan.com bulk-metadata-scaler
 ```

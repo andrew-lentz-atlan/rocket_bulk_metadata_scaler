@@ -73,20 +73,40 @@ class BulkMetadataActivities(ActivitiesInterface):
         """
         Parse the uploaded file and extract records.
 
+        Supports three modes:
+        1. object_store_key: Read from Atlan's object store (production)
+        2. file_content: Base64 encoded content (API/Streamlit)
+        3. file_upload: Local file path (playground)
+
         Args:
-            config: Workflow configuration containing file_content, file_name, or file_upload (path).
+            config: Workflow configuration containing one of the above.
 
         Returns:
             Dictionary with column_mapping and records.
         """
-        # Get file info - playground sends file_upload (path), API sends file_content (base64)
-        file_content = config.get("file_content", "")
-        file_upload = config.get("file_upload", "")  # File path from playground
+        # Get file info from various sources
+        object_store_key = config.get("object_store_key", "")  # Production: presigned URL upload
+        file_content = config.get("file_content", "")  # API: base64 encoded
+        file_upload = config.get("file_upload", "")  # Playground: local path
         file_name = config.get("file_name", "")
         search_column = config.get("search_column", "name")
         cm_delimiter = config.get("custom_metadata_delimiter", "::")
 
-        # If file_upload is provided (playground mode), read from disk
+        # Mode 1: Read from object store (production Atlan deployment)
+        if object_store_key and not file_content:
+            try:
+                from application_sdk.services.objectstore import ObjectStore
+                logger.info(f"Reading file from object store: {object_store_key}")
+                file_content = await ObjectStore.get_content(object_store_key)
+                if not file_name:
+                    file_name = Path(object_store_key).name
+            except ImportError:
+                logger.warning("ObjectStore not available - falling back to other methods")
+            except Exception as e:
+                logger.error(f"Failed to read from object store: {e}")
+                raise ValueError(f"Failed to read file from object store: {object_store_key}")
+
+        # Mode 2: Read from local disk (playground mode)
         if file_upload and not file_content:
             file_path = Path(file_upload)
             
@@ -109,7 +129,7 @@ class BulkMetadataActivities(ActivitiesInterface):
             file_content = file_path.read_bytes()
             file_name = file_path.name
         
-        # If file_content is base64 encoded (API mode), decode it
+        # Mode 3: Decode base64 content (API/Streamlit mode)
         elif isinstance(file_content, str) and file_content:
             logger.info(f"Decoding base64 file content for: {file_name}")
             try:
@@ -119,8 +139,8 @@ class BulkMetadataActivities(ActivitiesInterface):
         
         if not file_content:
             raise ValueError(
-                "No file content received. "
-                "Provide either 'file_content' (base64) or 'file_upload' (file path)."
+                "No file content received. Provide one of: "
+                "'object_store_key' (production), 'file_content' (base64), or 'file_upload' (local path)."
             )
 
         # Determine file type and load

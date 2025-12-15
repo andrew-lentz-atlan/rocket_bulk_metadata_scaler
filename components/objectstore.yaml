@@ -1,0 +1,13 @@
+# Dapr Object Store Component (Local Development)
+# In production, this is automatically configured by the Helm chart
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: objectstore
+spec:
+  type: bindings.localstorage
+  version: v1
+  metadata:
+    - name: rootPath
+      value: ./local/objectstore
+
