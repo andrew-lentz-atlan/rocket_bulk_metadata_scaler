@@ -61,8 +61,10 @@ class BulkMetadataHandler(HandlerInterface):
 
     def _load_configmap(self) -> None:
         """Load the configmap from file."""
-        # Look for configmap.json in the package directory or parent
+        # Look for frontend/config.json first (playground format), then configmap.json
         possible_paths = [
+            Path(__file__).parent.parent / "frontend" / "config.json",
+            Path("frontend/config.json"),
             Path(__file__).parent.parent / "configmap.json",
             Path(__file__).parent / "configmap.json",
             Path("configmap.json"),
@@ -75,7 +77,7 @@ class BulkMetadataHandler(HandlerInterface):
                 logger.info(f"Loaded configmap from {config_path}")
                 return
         
-        logger.warning("No configmap.json found")
+        logger.warning("No config.json or configmap.json found")
 
     async def load(self, **kwargs: Any) -> None:
         """Load handler resources."""
@@ -117,9 +119,9 @@ class BulkMetadataScalerApp(APIServer):
         super().register_routers()
 
     def register_ui_routes(self):
-        """Override to disable static file mounting (we don't have a frontend)."""
-        # Skip the default UI routes that require frontend/static directory
-        pass
+        """Register UI routes - serves static files from frontend/static/."""
+        # Now that app playground is installed, enable the default UI routes
+        super().register_ui_routes()
 
     def register_routes(self):
         """Register custom routes."""
@@ -274,12 +276,12 @@ async def main(daemon: bool = True) -> Dict[str, Any]:
         has_configmap=True,  # Enable configmap-based UI for Atlan platform
     )
 
-    # Register the workflow
+    # Register the workflow at /start (default endpoint expected by playground)
     app.register_workflow(
         BulkMetadataEnrichmentWorkflow,
         [
             HttpWorkflowTrigger(
-                endpoint="/workflow/enrich",
+                endpoint="/start",  # Playground expects this endpoint
                 methods=["POST"],
                 workflow_class=BulkMetadataEnrichmentWorkflow,
             )

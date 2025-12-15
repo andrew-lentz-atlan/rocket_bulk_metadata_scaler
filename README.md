@@ -4,70 +4,92 @@ An Atlan Application SDK app for bulk-updating asset metadata based on reference
 
 ## Features
 
-- Upload Excel/CSV reference files via API
-- Dynamically maps columns to Atlan properties
-- Finds all assets matching column names
-- Bulk-updates description, owners, tags, and custom metadata
-- Supports dry-run mode for preview
+- 📁 Upload Excel/CSV reference files
+- 🔍 Find all assets matching names in your reference file
+- 📝 Bulk-update description, owners, certificates, and custom metadata
+- 🔄 Dry-run mode for preview before applying changes
+- 🎯 Filter by asset types (Column, Table, View, etc.)
 
 ## Installation
 
 ```bash
-# Install dependencies
-pip install -e .
+# Clone and enter the directory
+cd bulk_metadata_scaler_app
 
-# Or with uv
+# Install dependencies with uv (recommended)
 uv sync
+
+# Or with pip
+pip install -e .
 ```
 
 ## Configuration
 
-Set environment variables:
+Set environment variables in a `.env` file:
 
 ```bash
-export ATLAN_API_KEY="your-api-key"
-export ATLAN_BASE_URL="https://your-tenant.atlan.com"
+ATLAN_API_KEY="your-api-key"
+ATLAN_BASE_URL="https://your-tenant.atlan.com"
 ```
 
-## Usage
+## Quick Start
 
-### Quick Start (Full SDK Mode)
+### Terminal 1: Start SDK Dependencies
 
 ```bash
-# Terminal 1: Start dependencies (Dapr + Temporal) from application-sdk directory
+# From the application-sdk directory
 cd /path/to/application-sdk
 uv run poe start-deps
+```
 
-# Terminal 2: Run the app
+### Terminal 2: Run the App
+
+```bash
 cd /path/to/bulk_metadata_scaler_app
+source /path/to/venv/bin/activate
 python -m bulk_metadata_scaler_app.main
-
-# Terminal 3: Run the Web UI
-streamlit run ui.py
 ```
 
-### Web UI
-
-The app includes a **Streamlit web interface** for easy file uploads:
+### Terminal 3 (Optional): Streamlit UI
 
 ```bash
 streamlit run ui.py
 ```
 
-Then open http://localhost:8501 in your browser.
+## Access Points
 
-Features:
-- 📁 Drag-and-drop file upload
-- ⚙️ Configure asset types and dry-run mode
-- 📊 Real-time workflow progress
-- 📋 Results summary
+| Interface | URL | Description |
+|-----------|-----|-------------|
+| **App Playground** | http://localhost:8000 | Atlan-style UI for testing |
+| **Streamlit UI** | http://localhost:8501 | Alternative UI with drag-drop upload |
+| **Temporal Dashboard** | http://localhost:8233 | Monitor workflow execution |
+| **API Docs** | http://localhost:8000/docs | OpenAPI documentation |
 
-### API Endpoints
+## Reference File Format
 
-#### Trigger Workflow (via JSON)
+Your CSV/Excel file should have a `name` column and any metadata columns you want to update:
+
+| name | description | certificate | user_owners | Data Governance::Business Owner |
+|------|-------------|-------------|-------------|--------------------------------|
+| customer_id | Customer identifier | VERIFIED | john@example.com | Jane Smith |
+| order_date | Date order placed | DRAFT | | |
+
+### Supported Columns
+
+1. **name** (required): Asset name to search for
+2. **Standard fields**: 
+   - `description` - Asset description
+   - `certificate` - VERIFIED, DRAFT, or DEPRECATED
+   - `user_owners` - Comma-separated email addresses
+   - `group_owners` - Comma-separated group names
+3. **Custom metadata**: `CustomMetadataSetName::FieldName` format
+
+## API Usage
+
+### Trigger Workflow
 
 ```bash
-POST /workflows/v1/workflow/enrich
+POST /workflows/v1/start
 Content-Type: application/json
 
 {
@@ -78,7 +100,7 @@ Content-Type: application/json
 }
 ```
 
-#### Example with Python
+### Python Example
 
 ```python
 import base64
@@ -88,7 +110,7 @@ with open('reference.csv', 'rb') as f:
     content = base64.b64encode(f.read()).decode('utf-8')
 
 response = requests.post(
-    'http://localhost:8000/workflows/v1/workflow/enrich',
+    'http://localhost:8000/workflows/v1/start',
     json={
         'file_content': content,
         'file_name': 'reference.csv',
@@ -97,43 +119,51 @@ response = requests.post(
     }
 )
 print(response.json())
-
-## Reference File Format
-
-| name | description | user_owners | certificate | CustomMetadata::FieldName |
-|------|-------------|-------------|-------------|---------------------------|
-| customer_id | Customer identifier | john@example.com | VERIFIED | Some Value |
-
-### Column Types
-
-1. **name** (required): Asset name to search for
-2. **Standard fields**: `description`, `user_owners`, `group_owners`, `certificate`
-3. **Custom metadata**: Format as `CustomMetadataSetName::FieldName`
+```
 
 ## Architecture
 
-Built on the Atlan Application SDK using:
+Built on the Atlan Application SDK:
 
-- **Temporal**: Workflow orchestration
+- **Temporal**: Workflow orchestration and reliability
 - **Dapr**: State management and service mesh
 - **FastAPI**: REST API endpoints
 - **pyatlan**: Atlan Python SDK for asset operations
 
-## Deployment Options
+## Deployment
 
-### Local Development (Streamlit UI)
+### Local Development
+
+Use Streamlit UI or App Playground for testing:
 ```bash
-streamlit run ui.py
+streamlit run ui.py  # Full file upload support
+# or
+# Visit http://localhost:8000 for App Playground
 ```
-Perfect for testing and demos. Opens at http://localhost:8501
 
-### Atlan Production Deployment
-The app includes a `configmap.json` that defines the UI forms for Atlan's platform:
-- Atlan renders the UI automatically based on the configmap
-- No custom frontend needed
-- Integrates with Atlan's authentication and asset browser
+### Atlan Production
 
-The configmap is served via `/workflows/v1/configmap/{id}` endpoint.
+When deployed to Atlan:
+1. The platform reads `frontend/config.json` to render the UI
+2. File uploads work via drag-and-drop
+3. Integrates with Atlan authentication
+
+## Project Structure
+
+```
+bulk_metadata_scaler_app/
+├── bulk_metadata_scaler_app/   # Main package
+│   ├── activities.py           # Temporal activities (business logic)
+│   ├── workflow.py             # Temporal workflow definition
+│   ├── models.py               # Data models
+│   └── main.py                 # FastAPI server & entry point
+├── frontend/
+│   └── config.json             # UI configuration for Atlan
+├── ui.py                       # Streamlit UI
+├── sample_reference.csv        # Example input file
+├── pyproject.toml              # Dependencies
+└── README.md
+```
 
 ## Development
 
@@ -144,4 +174,3 @@ pytest tests/
 # Format code
 ruff format .
 ```
-

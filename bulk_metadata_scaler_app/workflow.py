@@ -50,7 +50,22 @@ class BulkMetadataEnrichmentWorkflow(WorkflowInterface):
         )
         
         asset_types = full_config.get("asset_types", ["Column"])
-        dry_run = full_config.get("dry_run", False)
+        
+        # Handle run_type (playground) or dry_run (API/Streamlit)
+        # run_type: "dry" or "live" from playground
+        # dry_run: bool from API
+        run_type = full_config.get("run_type", "")
+        dry_run_value = full_config.get("dry_run", None)
+        
+        if run_type:
+            # From playground - "dry" means dry run, "live" means apply changes
+            dry_run = run_type.lower() == "dry"
+        elif dry_run_value is not None:
+            # From API/Streamlit - boolean value
+            dry_run = bool(dry_run_value)
+        else:
+            # Default to dry run for safety
+            dry_run = True
 
         # Initialize result
         result = WorkflowResult()

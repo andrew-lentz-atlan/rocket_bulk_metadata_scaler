@@ -74,27 +74,54 @@ class BulkMetadataActivities(ActivitiesInterface):
         Parse the uploaded file and extract records.
 
         Args:
-            config: Workflow configuration containing file_content and file_name.
+            config: Workflow configuration containing file_content, file_name, or file_upload (path).
 
         Returns:
             Dictionary with column_mapping and records.
         """
-        file_name = config.get("file_name", "data.csv")
+        # Get file info - playground sends file_upload (path), API sends file_content (base64)
         file_content = config.get("file_content", "")
+        file_upload = config.get("file_upload", "")  # File path from playground
+        file_name = config.get("file_name", "")
         search_column = config.get("search_column", "name")
         cm_delimiter = config.get("custom_metadata_delimiter", "::")
 
-        logger.info(f"Parsing file: {file_name}")
-
-        # Decode base64 content if it's a string
-        if isinstance(file_content, str) and file_content:
+        # If file_upload is provided (playground mode), read from disk
+        if file_upload and not file_content:
+            file_path = Path(file_upload)
+            
+            # Handle relative paths - look in common locations
+            if not file_path.is_absolute():
+                possible_paths = [
+                    Path(file_upload),  # Current directory
+                    Path(__file__).parent.parent / file_upload,  # App root
+                    Path(__file__).parent.parent.parent / file_upload,  # Workspace
+                ]
+                for p in possible_paths:
+                    if p.exists():
+                        file_path = p
+                        break
+            
+            if not file_path.exists():
+                raise ValueError(f"File not found: {file_upload}. Tried paths: {[str(p) for p in possible_paths]}")
+            
+            logger.info(f"Reading file from disk: {file_path}")
+            file_content = file_path.read_bytes()
+            file_name = file_path.name
+        
+        # If file_content is base64 encoded (API mode), decode it
+        elif isinstance(file_content, str) and file_content:
+            logger.info(f"Decoding base64 file content for: {file_name}")
             try:
                 file_content = base64.b64decode(file_content)
             except Exception:
                 file_content = file_content.encode()
         
         if not file_content:
-            raise ValueError("No file content received - file_content is empty")
+            raise ValueError(
+                "No file content received. "
+                "Provide either 'file_content' (base64) or 'file_upload' (file path)."
+            )
 
         # Determine file type and load
         suffix = Path(file_name).suffix.lower()

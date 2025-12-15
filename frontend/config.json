@@ -6,11 +6,10 @@
     "properties": {
       "file_upload": {
         "type": "string",
-        "format": "data-url",
         "required": true,
         "ui": {
           "label": "Reference File (CSV or Excel)",
-          "help": "Upload a file with 'name' column and metadata fields to update",
+          "placeholder": "sample_reference.csv",
           "grid": 12
         }
       },
@@ -20,7 +19,6 @@
         "ui": {
           "label": "Asset Types (comma-separated)",
           "placeholder": "Column,Table",
-          "help": "Which asset types to search for matching names",
           "grid": 6
         }
       },

@@ -83,7 +83,7 @@ def trigger_workflow(
     }
     
     response = requests.post(
-        f"{API_BASE_URL}/workflows/v1/workflow/enrich",
+        f"{API_BASE_URL}/workflows/v1/start",
         json=payload,
         timeout=30,
     )
